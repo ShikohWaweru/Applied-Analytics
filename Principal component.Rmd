@@ -1,0 +1,168 @@
+---
+title: "Principal Component"
+output: html_document
+date: "2023-11-17"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+#### OBJECTIVE ####
+  #You are given a dataset of stocks and several performance metrics. 
+  #The goal here is to create a more computationally efficient model as a pre-step to building a subsequent (predictive, for example) model.
+
+
+#### DATA ####
+  #The data consists of 252 observations compiled over several years. 
+  #The data includes stock performance predictors, one stock per row.
+  
+  
+#### DATA EXPLORATION ####
+library(readr)
+pca <- read.csv("C:/Users/wawer/Downloads/PCA_stock.csv")
+colnames(pca) = c("AnnualReturn", "ExcessReturn", "SystematicRisk", "TotalRisk", "AbsWinRate", "RelWinRate")
+head(pca)
+
+
+#### TASKS ####
+  #Key tasks include the creation of a variance-covariance matrix, determinant calculation, eigenvalues derivation, and principal component derivation. 
+  #The three main assumptions will also be verified through this process.
+  #Finally the model will be validated to ensure suitability of the chosen factors.
+  
+  
+#### PRELIMINARY STEPS ####
+
+ ### Correlation Matrix ###
+pcacor <- cor(pca)
+pcacor
+
+ ### Variance-covariance matrix ###
+pcacov <- cov(pca)
+pcacov
+
+ ###check for Statistical significance of the bivariate correlations ###
+library(psych)
+statSig <- corr.p(pcacor, 252, alpha=.05)
+ #short=FALSE prints confidence intervals
+print(statSig, short = FALSE) 
+
+
+#### VERIFICATION OF ASSUMPTIONS ####
+  #We first test for Sphericity and Sample adequacy using the paf() function that performs both Bartlett and KMO tests.
+  
+  ##Replace 'path/to/package/package.tar.gz' with the actual path to your .tar.gz file
+package_path <- 'C:/Users/wawer/Downloads/rela_4.1.tar.gz'
+  ##Install the package from the local file
+install.packages(package_path, repos = NULL, type = 'source')
+
+library(rela)
+
+  #Coerce data into a matrix and ignore headers
+dat <- data.matrix(pca[1:6])
+paf.pca <- paf(dat, eigcrit=1, convcrit=.001)
+  #Notice Bartlett and KMO values and ignore the rest
+summary(paf.pca) 
+
+  #The KMO of 0.51218 is sufficiently high enough for the scope of this example (though some authors would say it just barely meets the criterion, insisting on a KMO value greater or equal to 0.7, data familiarity and past experiments done by the original data authors are the reasons behind keeping our value). KMO > 0.5 is generally acceptable.
+  #As the Bartlett chi-square = 811.3 does not show p-values, we calculate this separately;
+  
+  #Bartlett significance test using correlation matrix
+cortest.bartlett(pcacor, n=252)
+
+  #The low p-value proves statistical significance, indicating that correlations are not near zero. Finally, we can calculate the matrix determinant to ensure it is positive
+  
+  #Verify that the determinant is positive
+det(pcacor)
+  #The positive determinant concludes the tests and allows us to proceed with the PCA modelling.
+  
+  
+#### COMPLETE PCA ####
+  #We assess the components needed using the principal() function.
+  
+pca1Component <- principal(pcacor, rotate="none")
+  #Default with 1 component and no scores
+pca1Component
+
+  #The rotate function is used in cases where interpretability is limited, especially in cases where the variables load to more than one factor. 
+  #The function rotates the axes to provide better mapping. Here, we work with an unrotated solution.
+  #The sum of the h2 values are the eigenvalues, with a proportion variance of 0.43. 
+  #This implies that we have yet to explain 57% of the variance, and therefore need additional principal components.
+  
+pca6Components <- principal(pcacor, nfactors=6, rotate="none")
+  #We calculate all 6 components
+pca6Components
+
+  #The eigenvalues and proportion of variance are given in the output code above. 
+  #We now can decide which variables to keep and the proportion of variance we are comfortable with.
+  #We also need to be mindful of the residual errors. 
+  #We can use the Cronbach alpha reliability co-efficient to assess internal consistency. 
+  #Internal consistency tests measure whether different items that are expected to measure the same thing actually give similar scores.
+
+  #Higher values better reliability
+alpha(pcacor) 
+result <- alpha(pcacor, check.keys = TRUE)
+print(result)
+
+  #Here we focus on the overall raw_alpha and variable-specific (reliability if an item is dropped) raw_alpha figures. 
+  #To determine which variables possess the greatest reliability, first check if any of the variable-specific raw alpha values are greater than the overall raw alpha score. 
+  #If the reliability increases after an item is dropped, e.g., SystematicRisk in our case, then this variable has a lower reliability. 
+  #If reliability drops after removing a variable, then this variable should be kept as it has higher reliability.
+  #It should be noted that reliability is just one measure used to support correlation analysis, and the score can in some cases depend on other values like sample sizes. 
+  #Exceptionally high alphas are not necessary good either as they could mean we are working with a purely redundant variable.
+
+
+#### Results Visualization ####
+  #The tests above are sufficient enough to enable us choose key factors. 
+  #The Scree plot provides further visualization. 
+  #Parallel analysis is applied in this case. This `compares the scree of factors of the observed data with that of a random data matrix of the same size as the original’ https://www.rdocumentation.org/packages/psych/versions/2.3.9/topics/fa.parallel. 
+  #It is normally recommended to select factors whose eigenvalues are greater in the original dataset than in the sample dataset.
+
+fa.parallel(pca,n.obs=252, fm="pa", fa="pc")
+  # Parallel analysis suggests that the number of factors =  NA  and the number of components =  2
+  
+fa.diagram(pca6Components) 
+  #The major factors are displayed to the left of the bend in the scree plot. Notice the downward slope to indicate decreasing variance.
+  
+  
+#### RESULTS INTERPRETATION ####
+  #PC1 and PC2 in total explain 74% of the variance, and some may find this sufficient for their needs. 
+  #Others may want to add a third factor, PC3, to be able to explain 87% of variance. 
+  #The final choices will really be a tradeoff between computational efficiency and accuracy.
+  #We choose the three components as they fully map our six original variables.
+
+
+#### Factor Representations ####
+  #We can represent the factors as scores if we need to use them for subsequent analysis.
+
+  #Use data instead of correlation matrix
+pca.results <- principal(pca,nfactors=6,rotate='none')
+pca.results$scores
+
+  #now correlate the scores to check for independence
+  #these should be orthogonal
+cor(pca.results$scores) 
+
+  #Round off for better visualisation
+round(cor(pca.results$scores))

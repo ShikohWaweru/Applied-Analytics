@@ -1,0 +1,170 @@
+---
+title: "Decision Trees"
+output: html_document
+date: "2023-10-27"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+
+## Loading data ##
+library(readxl)
+loan_approval <- read_excel("C:/Users/wawer/Downloads/LoanApproval.xlsx")
+
+
+## Data source ##
+loans.df <- data.frame(loan_approval)
+head(loans.df)
+tail(loans.df)
+
+## Data Exploration ##
+  #The data exploration step is important as it ensures that we can pick the best approach to analyse it. 
+  #In this step we explore the data structures, values, and variable-specific summaries.
+  
+  #Compactly display structure of an arbitrary R object
+str(loans.df)
+  
+  #Names of the variables
+names(loans.df)
+  
+  #Checking classification of the data
+class(loans.df) 
+
+  #Summary of the data
+summary(loans.df)
+
+  #Check for missing data
+sum(is.na(loans.df))
+
+## Define the prediction task ##
+  #The task involved building a decision tree model which will then be used to predict whether to approve the loan or not. 
+  #Successive decisions will be based on the availability (or unavailability) of each respective factor.
+  
+## Data pre-processing ##
+  #We now split the data into training and test sets.   
+  #The split ratio is normally left to the analyst’s discretion, but considers factors including the data size, reliability, and common practices in the field, etc. 
+  #In this case we consider a 70:30 split, with the training set being 70% of the data.
+  
+  #Set seed for sample reproducibility
+set.seed(22) 
+
+  #Splitting the data set
+library(caTools)
+sample <- sample.split(loans.df$Approval, SplitRatio=0.7)
+
+loans.df.train <- subset(loans.df, sample==TRUE)
+loans.df.test <- subset(loans.df, sample==FALSE)
+head(loans.df.train)
+head(loans.df.test)
+
+  #After this, we can now build the decision tree model.
+  
+
+## Build the predictive model ##
+
+  #This is accomplished via the rpart function in R.
+library(rpart)
+approvalModel <- rpart(Approval ~ ., data=loans.df.train, method="class", parms = list(split="information"), cp=-1)
+approvalModel
+ 
+  #Results: The tree nodes are indented to show the decision paths. For example, node 24 test whether PMT>2509.668 and then proceeds to assessing income (node 58 and 49). Node 48 leads to a loan denial with 100% probability (since income is less than 61,538.5 - notice the termination sign at the end of node 48’s values), while node 48 launches a new decision path (as income greater than 61,538.5 is still within the acceptable range).
+  
+  
+## Model visualization ##
+
+  #Loading required libraries
+install.packages("rattle")
+library(rattle)
+install.packages("rpart.plot")
+library(rpart.plot)
+library(RColorBrewer)
+
+  #Create the decision tree
+fancyRpartPlot(approvalModel)
+
+  #For even better visualization, we can zoom in to a specific portion of the tree. As an example, we focus our tree and zoom un upto the 4th depth level, i.e.,
+  #Show the tree at depth=4 for better visualization
+  
+approvalTreeModel <- rpart(Approval ~., data=loans.df.train, method="class", parms=list(split="information"), maxdepth=4, minsplit=2, minbucket=2)
+approvalTreeModel
+fancyRpartPlot(approvalTreeModel)
+  
+  #For model improvements, we focus on reducing the complexity of the model and removing redundant factors (similar to excluding insignificant variables in logistic regression) through pruning techniques.
+
+  #The complexity parameter (cp) is a measure of the size (complexity) of the tree. If adding a variable results in a higher cp value, then that branch is pruned. This cp value thus helps avoid overfitting the model. The optimal cp value is calculated via the printcp()function in R.  
+  
+printcp(approvalTreeModel)
+plotcp(approvalTreeModel)
+  #From the printcp output, we see that the optimal cp value is 0.01 (optimal cp =0.01). A good threshold for pruning will therefore be a value slightly higher, e.g., 0.02. We now feed this threshold into the prune() function and generate a much simpler and efficient decision tree.
+  
+# The pruned tree model
+ #Since the cp value is greater than 0.01, set to 0.02
+approvalTreeModel.pruned <- prune(approvalTreeModel, cp=0.02)
+approvalTreeModel.pruned
+ #Show the pruned tree
+fancyRpartPlot(approvalTreeModel.pruned)
+
+
+## Making predictins ##
+  #Once we have an efficient decision tree model, we can now move on to predicting loan approvals.Prediction
+  
+pred <- predict(approvalTreeModel.pruned, newdata=loans.df.test, type="class")
+pred.df <- data.frame(pred)
+
+head(pred.df)
+tail(pred.df)
+
+ #We first examine the confusion matrix
+ 
+table(loans.df.test$Approval, pred.df$pred) 
+
+  #This enables the calculation of the probability of misclassification i.e., to show how well the classification model is performing
+  
+classification.error <- mean(pred.df$pred != loans.df.test$Approval)
+classification.error 
+
+accuracy <- 1 - classification.error
+accuracy
+  #The model gives an accuracy of 97%, with only a small misclassification probability of 2.8%, giving confidence in its prediction ability.
+  
+  #The actual probabilities of acceptance or rejection for each loan are given below:
+  
+probMatrix <- predict(approvalTreeModel.pruned, newdata=loans.df.test, type="prob")
+probMatrix.df <- data.frame(probMatrix)
+
+ #Show the matrix, where X0 denotes prob(No) and X1 denotes prob(Yes)
+
+options(scipen = 999 )
+head(probMatrix.df)
+tail(probMatrix.df)
+
+
+## Interpreting the results ##
+  #The results are quite straightforward, with a loan either being approved or not, and the decision confirmed by traversing the decision tree. Borrowers 2 and 12 are predicted to be approved with high probability, almost close to 100%, while borrower 6 only has a 61% chance of being approved. It is important to note that the synthetic nature of the data may lead to decisions that deviate from common sense, but it was still a good starting point in understanding of decision trees and its predictive abilities, especially in cases where credit data is unavailable due to factors like privacy concerns. The model can be further applied to available credit data for a more complete decision-making process.
+  
+  
+## Conclusion ##
+ #A decision tree can be, in most cases, an alternative to logistic regression. It however, is not limited to binary answers. We can easily change the number of decisions to introduce some form of conditional approvals e.g., Approved, Declined, Approved with conditions, and Declined till a given date. The analyst must consider factors like computational efficiency, ease of implementation, and the accuracy of predictions in choosing between a decision tree and logistic regression for binary problems. In addition, as a decision tree can be expanded with new decision paths, the analyst is also encouraged to explore further techniques of improving the model accuracy and predictive abilities, including, for example, random forests.

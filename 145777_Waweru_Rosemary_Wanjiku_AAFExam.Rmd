@@ -1,0 +1,414 @@
+---
+title: "Applied Analytics Exam"
+author: "145777 BBS FENG"
+date: "2023-12-18"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+
+#### QUESTION THREE ####
+
+  ## LOADING NECESSARY LIBRARIES AND PACKAGES ###
+library(caret)
+
+  ## LOADING THE DATA ##
+library(readxl)
+data <- read_excel("C:/Users/wawer/Downloads/DATASET.xlsx")
+
+ ### PART (i) ###
+ 
+str(data)
+any(is.na(data))
+   #Convert character variables to factors
+data$checking_balance <- as.factor(data$checking_balance)
+data$credit_history <- as.factor(data$credit_history)
+data$purpose <- as.factor(data$purpose)
+data$savings_balance <- as.factor(data$savings_balance)
+data$employment_length <- as.factor(data$employment_length)
+data$personal_status <- as.factor(data$personal_status)
+data$other_debtors <- as.factor(data$other_debtors)
+data$property <- as.factor(data$property)
+data$installment_plan <- as.factor(data$installment_plan)
+data$housing <- as.factor(data$housing)
+data$telephone <- as.factor(data$telephone)
+data$foreign_worker <- as.factor(data$foreign_worker)
+data$job <- as.factor(data$job)
+   #Ensure the response variable 'default' is a factor
+data$default <- as.factor(data$default)
+   #Set seed for reproducibility
+set.seed(123)
+   #Ensure the response variable 'default' is a factor
+data$default <- as.factor(data$default)
+   #Convert the 'default' values to 0 and 1
+data$default <- as.numeric(data$default) - 1
+   #Split the data into training and testing sets
+train_indices <- createDataPartition(data$default, p = 0.8, list = FALSE)
+train_data <- data[train_indices, ]
+test_data <- data[-train_indices, ]
+
+   ##Train a logistic regression model
+logistic_model <- glm(default ~ ., data = train_data, family = "binomial")
+   ##View summary of the logistic regression model
+summary(logistic_model)
+
+
+  ### PART (ii) ###
+  
+  ##Make predictions on the test set
+predictions <- predict(logistic_model, newdata = test_data, type = "response")
+
+   #Convert probabilities to binary predictions (0 or 1)
+binary_predictions <- ifelse(predictions > 0.5, 1, 0)
+
+  ##Confusion matrix
+conf_matrix <- confusionMatrix(data = factor(binary_predictions), reference = factor(test_data$default))
+print(conf_matrix)  
+
+  ##Comments
+   True Positives (TP): 39
+   True Negatives (TN): 114
+   False Positives (FP): 31
+   False Negatives (FN): 16
+Accuracy: 76.5% - This represents the overall correctness of the model's predictions.
+Sensitivity (True Positive Rate): 87.7% - The model exhibits reasonably high sensitivity (87.7%), indicating its ability to correctly identify customers with good credit (class 0). 
+Specificity (True Negative Rate): 55.7% - The specificity, however, is relatively lower at 55.7%, indicating a weaker ability to correctly identify customers with bad credit (class 1).
+Positive Predictive Value (Precision): 78.6% - The positive predictive value (precision) is 78.6%, suggesting that when the model predicts a customer as high risk, there is a 78.6% chance that the customer is indeed high risk.
+Negative Predictive Value: 70.9% - The negative predictive value is 70.9%, indicating the likelihood that a customer predicted as low risk is indeed low risk.
+   
+   
+  ### PART (iii) ###
+  
+  ##Evaluate model performance
+   #Precision, Specificity, Sensitivity
+precision <- conf_matrix$byClass["Pos Pred Value"]
+specificity <- conf_matrix$byClass["Specificity"]
+sensitivity <- conf_matrix$byClass["Sensitivity"]
+
+cat("Precision:", precision, "\n")
+cat("Specificity:", specificity, "\n")
+cat("Sensitivity:", sensitivity, "\n")
+
+  ## Explanation of precision
+A precision of 0.7862 means that when the model predicts a customer as high risk, there is a 78.62% chance that the customer is indeed high risk.Higher precision is desirable, especially when the cost of false positives is high.
+  ## Explanation for specificity
+A specificity of 0.5571 indicates that the model's ability to correctly identify customers with bad credit (class 1) is moderate. Higher specificity is crucial in scenarios where correctly identifying low-risk customers is a priority.
+  ## Explanation for sensitivity
+A sensitivity of 0.8769 suggests that the model has a high ability to correctly identify customers with good credit (class 0). High sensitivity is important when correctly identifying high-risk customers is a priority.
+
+
+  ### PART(iv) ###
+  ## Improve the model
+   # Identify numeric columns
+ numeric_columns <- sapply(train_data, is.numeric)
+   # Scale only numeric columns
+ scaled_data <- scale(train_data[, numeric_columns])
+   # Combine scaled numeric columns with non-numeric columns
+ scaled_train_data <- cbind(train_data[, !numeric_columns, drop = FALSE], scaled_data)
+ 
+ table(train_data$default)
+ train_data$default <- as.factor(train_data$default)
+ scaled_train_data$default <- as.factor(scaled_train_data$default)
+ str(scaled_train_data)
+
+  # Train a logistic regression model on scaled data
+ scaled_logistic_model <- glm(default ~ ., data = scaled_train_data, family = "binomial")
+ 
+  # View summary of the logistic regression model on scaled data
+summary(scaled_logistic_model)
+ 
+  ##make predictions on the test set using the newly trained model and evaluate its performance
+   # Scale the numeric columns in the test data
+scaled_test_data <- cbind(test_data[, !numeric_columns, drop = FALSE], scale(test_data[, numeric_columns]))
+
+   # Make predictions on the scaled test set
+scaled_predictions <- predict(scaled_logistic_model, newdata = scaled_test_data, type = "response")
+
+   # Convert probabilities to binary predictions (0 or 1)
+scaled_binary_predictions <- ifelse(scaled_predictions > 0.5, 1, 0)
+
+   # Confusion matrix for the scaled model
+scaled_conf_matrix <- confusionMatrix(data = factor(scaled_binary_predictions), reference = factor(test_data$default))
+print(scaled_conf_matrix)
+
+   # Evaluate model performance of the scaled model
+scaled_precision <- scaled_conf_matrix$byClass["Pos Pred Value"]
+scaled_specificity <- scaled_conf_matrix$byClass["Specificity"]
+scaled_sensitivity <- scaled_conf_matrix$byClass["Sensitivity"]
+
+cat("Scaled Model Precision:", scaled_precision, "\n")
+cat("Scaled Model Specificity:", scaled_specificity, "\n")
+cat("Scaled Model Sensitivity:", scaled_sensitivity, "\n")
+  
+  ## Commenting
+Scaling the numeric variables has led to an improvement in sensitivity, suggesting that the model is now better at correctly identifying customers with good credit. This is crucial in scenarios where correctly identifying low-risk customers is a priority.
+However, there is a trade-off with specificity, which has decreased. The model is now less effective at correctly identifying customers with bad credit.
+The precision has slightly improved, indicating a better accuracy of positive predictions.
+   
+   
+   
+#### QUESTION ONE ####
+
+   ### PART (i) ###
+library(readxl)
+Data_Q1 <- read_excel("C:/Users/wawer/Downloads/DATA.xlsx")
+
+head(Data_Q1)
+View(Data_Q1)
+
+  #Load necessary libraries
+library(ggplot2)
+install.packages("gridExtra")
+library(gridExtra)
+library(reshape2)
+
+  #Sample dataset 
+set.seed(123)
+Data_Q1 <- data.frame(
+  squareMeters = rnorm(100, mean = 30, sd = 5),
+  numberOfRooms = rnorm(100, mean = 50000, sd = 10000),
+  hasYard = rnorm(100, mean = 12, sd = 2),
+  hasPool = rnorm(100, mean = 75, sd = 10),
+  floors = rnorm(100, mean = 70, sd = 15),
+  cityCode = rnorm(100, mean = 20000, sd = 5000)
+)
+
+  # Create SPLOM using pairs() function
+pairs(Data_1, diag.panel = NULL)
+
+# Calculate and print correlation matrix
+cor_matrix <- cor(Data_1)
+print(cor_matrix)
+
+# Visualize correlation matrix with ggplot2
+ggplot(Data_1 = melt(cor_matrix), aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1, 1), space = "Lab", name="Correlation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  coord_fixed()
+
+
+  ### PART (ii) ###
+
+library(lattice)
+library(ggplot2)
+library(caret)
+
+  #Set seed for reproducibility
+set.seed(123)
+Data_Q1 <- data.frame(
+  squareMeters = rnorm(100, mean = 30, sd = 5),
+  numberOfRooms = rnorm(100, mean = 50000, sd = 10000),
+  hasYard = rnorm(100, mean = 12, sd = 2),
+  hasPool = rnorm(100, mean = 75, sd = 10),
+  floors = rnorm(100, mean = 70, sd = 15),
+  cityCode = rnorm(100, mean = 20000, sd = 5000)
+)
+
+  #Specify the percentage for the training set
+train_percentage <- 0.7
+
+  #Create an index for splitting the data
+index <- createDataPartition(Data_1$TargetVariable, p = train_percentage, list = FALSE)
+
+  #Create training and test sets
+training_set <- Data_1[0.7,0]
+test_set <- Data_1[0.3,0 ]
+
+   ### PART (iii) ###
+   
+  #Sample dataset 
+set.seed(123)
+Data_Q1 <- data.frame(
+  squareMeters = rnorm(100, mean = 30, sd = 5),
+  numberOfRooms = rnorm(100, mean = 50000, sd = 10000),
+  hasYard = rnorm(100, mean = 12, sd = 2),
+  hasPool = rnorm(100, mean = 75, sd = 10),
+  floors = rnorm(100, mean = 70, sd = 15),
+  cityCode = rnorm(100, mean = 20000, sd = 5000),
+  Price = rnorm(100, mean = 100000, sd = 20000)
+)
+
+  #Train a linear regression model
+model <- lm(Price ~ squareMeters + numberOfRooms + hasYard + hasPool + floors + cityCode,  data = Data_1)
+  #Summary of the model
+summary(model)
+
+  #Assumption 1: Linearity
+Check the linearity assumption by plotting residuals vs. fitted values
+plot(model, which = 1)
+
+  #Assumption 2: Homoscedasticity
+Check the homoscedasticity assumption by plotting residuals vs. fitted values
+plot(model, which = 3)
+
+
+
+
+#### QUESTION TWO ####
+
+   ### PART (i) ###
+library(readxl)
+Data_Set2 <- read_excel("C:/Users/wawer/Downloads/DATASET.xlsx")
+View(Data_Set2)
+
+  #carrying out meaningful analysis before starting
+head(Data_Set2)
+tail(Data_Set2)
+  #converting character data to numeric
+   #calling out numeric data
+num_data<-Data_Set2[ , 1:8]
+num_data
+   #calling out character data
+char_col<-Data_Set2[ ,8:ncol(Data_Set2)]
+char_col
+
+fact_function<-function(x){return(as.numeric(factor(x, ordered=TRUE)))}
+
+char_data<-lapply(char_col,fact_function)
+char_data
+char_data<-as.data.frame(char_data)
+char_data
+   #combine the data
+data_1<-cbind.data.frame(num_data,char_data)
+data_1
+
+summary(data_1)
+str(data_1)
+sum(is.na(data_1))
+
+  # Split the data into training and testing sets with a 70:30 ratio
+library(caTools)
+set.seed(123)
+sample<-sample.split(data_1$default,SplitRatio = 0.7)
+sample
+train_data<-subset(data_1,sample==TRUE)
+test_data <- subset(data_1, sample==FALSE)
+head(train_data)
+str(train_data)
+head(test_data)
+str(test_data)
+
+
+   ### PART (ii) ###
+  
+library(caret)
+
+  # Min-Max Normalization
+min_max_normalize <- function(x) {
+  (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
+}
+
+# Apply min-max normalization to your features
+numeric_columns <- sapply(data_1, is.numeric)
+data_1[, numeric_columns] <- lapply(data_1[, numeric_columns], min_max_normalize)
+
+# Check for and handle duplicated column names
+if (any(duplicated(names(data_1)))) {
+  # Add a suffix to duplicated column names
+  names(data_1) <- make.unique(names(data_1), sep = "_")
+}
+
+set.seed(123)
+sample <- createDataPartition(data_1$default, p = 0.7, list = FALSE)
+
+# Create a training control object
+ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3, search = "grid")
+
+# Specify the grid of k values to try
+k <- seq(1, 20, by = 2)
+
+# Train the kNN model using cross-validation
+knn_model <- train(default ~ ., data = data_1[sample, ], method = "knn", trControl = ctrl, tuneGrid = data.frame(k = k))
+  # Assumptions:
+The assumption of k-NN is that similar instances have similar class labels. It relies on the proximity of instances in the feature space.
+The assumption of min-max normalization is to scale the features to a c
+
+
+   ### PART (iii) ###
+   
+  # Make predictions on the test data
+predictions2 <- predict(knn_model, newdata = data_1[-sample, ])
+
+  # Print the accuracy of the model
+print("Accuracy:")
+print(sum(predictions2 == data_1[-sample,]$default) / nrow(data[-sample,]))
+
+  #Comments
+Why accuracy isnt the best model
+While accuracy is an important evaluation metric, it may not always be the best choice for imbalanced datasets 
+In imbalanced datasets, accuracy does not accurately represent model performance, as the model is usually biased towards the majority class.
+Sensitivity, or True Positive Rate (TPR), and Specificity are often more useful evaluation metrics in imbalanced datasets. These metrics help in understanding how well the model is able to identify the minority class instances, rather than being misled by majority class instances.
+
+
+   ### PART (iv) ###
+   
+   # Check levels of 'predictions' vector
+cat("Levels of predictions:", levels(predictions), "\n")
+  # Check levels of 'test_data$default'
+cat("Levels of test_data$default:", levels(test_data$default), "\n")
+ # Convert 'default' column to factor with the same levels in both test_data and predictions
+test_data$default <- factor(test_data$default, levels = levels(predictions2))
+
+# Create a confusion matrix
+conf_matrix <- confusionMatrix(predictions2, test_data$default)
+print(conf_matrix)
+
+# Print confusion matrix
+print("Confusion Matrix:")
+print(conf_matrix)
+
+# Comments on results
+cat("Comments on Results:\n")
+cat("Sensitivity (True Positive Rate):", conf_matrix$byClass["Sensitivity"], "\n")
+cat("Specificity (True Negative Rate):", conf_matrix$byClass["Specificity"], "\n")
+cat("Accuracy:", conf_matrix$overall["Accuracy"], "\n")
+   
+
+   ### Part (V) ###
+ # Test alternative values of k
+alternative_k_values <- seq(3, 15, by = 2)
+
+ # Create an empty data frame to store results
+result_table <- data.frame(K = integer(), Sensitivity = numeric(), Specificity = numeric(), Accuracy = numeric())
+
+ # Loop through alternative values of k
+for (k_value in alternative_k_values) {
+  knn_model <- train(default ~ ., data = train_data, method = "knn", trControl = ctrl, tuneGrid = data.frame(k = k_value))
+  predictions3 <- predict(knn_model, newdata = test_data)
+  conf_matrix2 <- confusionMatrix(predictions, test_data$default)
+  sensitivity2 <- conf_matrix2$byClass["Sensitivity"]
+  specificity2 <- conf_matrix2$byClass["Specificity"]
+  accuracy2 <- conf_matrix2$overall["Accuracy"]
+  
+  # Append results to the data frame
+  result_table <- rbind(result_table, data.frame(K = k_value, Sensitivity = sensitivity2, Specificity = specificity2, Accuracy = accuracy2))
+}
+

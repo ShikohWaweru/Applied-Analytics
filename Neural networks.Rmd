@@ -1,0 +1,330 @@
+---
+title: "neural networks"
+output: html_document
+date: "2023-11-03"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+install.packages("installr")
+library(installr)
+updateR()
+
+#### NEURAL NETWORKS LOAN APPROVAL ####
+### Loading data ###
+install.packages("readr")
+library(readr)
+loan_approval <- read_csv("C:/Users/wawer/Downloads/LoanApproval.csv")
+
+
+### STEP 1: DEFINE THE PREDICTION OBJECTIVE ###
+  #Given loan applicant data, use artificial neural networks to predict whether a loan would be approved or not.
+  
+
+### STEP 2: DATA SOURCE ###
+loans.df <- data.frame(loan_approval)
+head(loans.df)
+tail(loans.df)
+
+
+### STEPP 3: DATA EXPLORATION ###
+  #The data exploration step is important as it ensures that we can pick the best approach to analyse it.
+  #In this step we explore the data structures, values, and variable-specific summaries.
+  
+  #Compactly display structure of an arbitrary R object
+str(loans.df)
+names(loans.df) 
+class(loans.df) 
+summary(loans.df)
+sum(is.na(loans.df))
+
+
+### STEP 4: DEFINE THE PREDICTION TASK ###
+  #The task involved building a neural network model which will then be used to predict whether to approve the loan or not.
+  #Successive decisions will be based on the availability (or unavailability) of each respective factor.
+  
+  
+### STEP 5: DATA PRE-PROCESSING ###
+  #We now split the data into training and test sets.
+  #In this case we consider a 70:30 split, with the training set being 70% of the data.
+  
+  # Set seed for sample reproducibility
+set.seed(22)  
+
+install.packages("caTools")
+library(caTools)
+sample <- sample.split(loans.df$Approval, SplitRatio=0.7)
+
+loans.df.train <- subset(loans.df, sample==TRUE)
+loans.df.test <- subset(loans.df, sample==FALSE)
+head(loans.df.train)
+head(loans.df.test)
+
+
+### STEP 6: BUILD THE PREDICTIVE MODEL ###
+install.packages("caret")
+library(caret)
+install.packages("neuralnet")
+library(neuralnet)
+library(nnet)
+
+  # Convert dependent variable to factor
+loans.df.train$Approval = as.factor(loans.df.train$Approval)
+train_params <- trainControl(method="repeatedcv", number=10, repeats =5)
+approvalNNModel <- train(loans.df.train[,-7], loans.df.train$Approval, method = "nnet", trControl = train_params, preProcess = c("scale", "center"), na.action = na.omit)
+
+
+### STEP 7: MODEL EVALUATION ###
+  #Baseline accuracy
+prop.table(table(loans.df.train$Approval)) 
+
+
+### STEP 8: MAKING PREDICTIONS ###
+  #Predictions on training set
+approvalNNModel.pred.train <- predict(approvalNNModel, loans.df.train)
+approvalNNModel.pred.train <- as.numeric(as.character(approvalNNModel.pred.train))
+
+  #round to nearest 1
+approvalNNModel.pred.train <- round(approvalNNModel.pred.train)
+
+  #Confusion matrix on training data
+table(loans.df.train$Approval,approvalNNModel.pred.train )
+
+  #Accuracy
+(5993+7999)/nrow(loans.df.train)
+
+  #Predictions on test set
+approvalNNModel.pred.test <- predict(approvalNNModel, loans.df.test)
+approvalNNModel.pred.test <- as.numeric(as.character(approvalNNModel.pred.test))
+approvalNNModel.pred.test <- round(approvalNNModel.pred.test)
+
+  #Confusion matrix on test data
+table(loans.df.test$Approval,approvalNNModel.pred.test )
+
+  #Accuracy
+(2565+3426)/nrow(loans.df.test)
+  
+  
+  
+  
+#### NEURAL NETWORKS LSTM ####
+### FINANCIAL TIME SERIES PREDICTION WITH NEURAL NETWORKS ###
+  #In this document we assess how to apply neural networks to forecast financial time series, in particular, to forecast the price of a cryptocurrency.
+  #These can be extremely volatile, so we would like to see just how well a neural network would perform in such cases.
+  #We consider a cryptocurrency that was established in 2018 but lost almost all of its value last year, 2022, within a matter of days, affecting millions of investors. This is the LUNA coin established by Terra Inc - a company founded by Do Kwon and Daniel Shin.
+  #We follow the same steps we’ve applied in decision trees and the neural network loan approval model.
+
+
+### STEP 1: DEFINE THE PREDICTION OBJECTIVE ###
+  #Given coin return data, use artificial neural networks to predict returns for a given test period.
+  #Loading the necessary libraries
+install.packages("keras")
+library(keras)
+library(tensorflow)
+
+
+### STEP 2: DATA SOURCE ###
+library(readr)
+luna1 <- read_csv("C:/Users/wawer/Downloads/LunaCoin_precrash.csv")
+head(luna1)
+luna2 <- read_csv("C:/Users/wawer/Downloads/LunaCoin_postcrash.csv")
+head(luna2)
+series <- c(luna2$Price,luna1$Price)
+
+
+### STEP 3: DATA EXPLORATION ###
+  # compactly display structure of an arbitrary R object
+str(luna1) 
+
+names(luna1) 
+class(luna1) 
+summary(luna1)
+
+  #Check for missing data
+sum(is.na(luna1))
+sum(is.na(luna2))
+
+
+### STEP 4: DEFINE THE PREDICTION TASK ###
+  #he task involved building a neural network model for Luna coin before its crash which will then be used to predict the price of luna coin after its crash.
+  
+  
+### STEP 5: DATA PRE-PROCESSING ###
+  #As the data is already split into its train and test sets, the splitting step is already complete. We can check for other pre-processing requirements instead, especially those that relate directly to LSTM models.
+  
+#Transform data to ensure stationarity
+stat1 = diff(luna1$Price, differences=1)
+head(stat1)
+stat2 = diff(luna2$Price, differences=1)
+head(stat2)
+
+#Lagging the data set
+  #As LSTM expects our data to have a predictor x and target variable y, we lag our datasets so the lagged values can be the input variable x and the non-lagged values to be the output variable y.
+  
+lag_transform <- function(x, k= 1){
+    
+      lagged =  c(rep(NA, k), x[1:(length(x)-k)])
+      DF = as.data.frame(cbind(lagged, x))
+      colnames(DF) <- c( paste0('x-', k), 'x')
+      DF[is.na(DF)] <- 0
+      return(DF)
+}
+supervised1 = lag_transform(stat1, 1)
+head(supervised1)
+
+supervised2 = lag_transform(stat2, 1)
+head(supervised2)
+
+#Normalize the data
+  # We then rescale the input data to the range of the activation function. In LSTM, this is the sigmoid function that has a range of (-1,1).
+  
+N1 = nrow(supervised1)
+N2 = nrow(supervised2)
+train = supervised1[1:N1, ]
+test = supervised2[1:N2, ]
+
+
+scale_data = function(train, test, feature_range = c(0, 1)) {
+  x = train
+  fr_min = feature_range[1]
+  fr_max = feature_range[2]
+  std_train = ((x - min(x) ) / (max(x) - min(x)  ))
+  std_test  = ((test - min(x) ) / (max(x) - min(x)  ))
+  
+  scaled_train = std_train *(fr_max -fr_min) + fr_min
+  scaled_test = std_test *(fr_max -fr_min) + fr_min
+  
+  return( list(scaled_train = as.vector(scaled_train), scaled_test = as.vector(scaled_test) ,scaler= c(min =min(x), max = max(x))) )
+  
+}
+
+
+Scaled = scale_data(train, test, c(-1, 1))
+
+y_train = Scaled$scaled_train$x
+x_train = Scaled$scaled_train$`x-1`
+
+y_test = Scaled$scaled_test$x
+x_test = Scaled$scaled_test$`x-1`
+
+# To revert back to the unscaled values
+  ## Inverse transform
+invert_scaling = function(scaled, scaler, feature_range = c(0, 1)){
+  min = scaler[1]
+  max = scaler[2]
+  t = length(scaled)
+  mins = feature_range[1]
+  maxs = feature_range[2]
+  inverted_dfs = numeric(t)
+  
+  for( i in 1:t){
+    X = (scaled[i]- mins)/(maxs - mins)
+    rawValues = X *(max - min) + min
+    inverted_dfs[i] <- rawValues
+  }
+  return(inverted_dfs)
+}
+
+
+### STEP 6: BUILD THE PREDICTIVE MODEL ###
+#Reshape the input to 3-dimension
+dim(x_train) <- c(length(x_train), 1, 1)
+
+  #Specify the required arguments
+X_shape2 <- dim(x_train)[2]
+X_shape3 <- dim(x_train)[3]
+  #Must be a common factor of both the train and test samples
+batch_size <- 1
+  #Can adjust this, in model tuning phase
+units <- 1 
+
+install.packages("reticulate")
+library(reticulate)
+ install_python()
+ virtualenv_create("r-tensorflow", install_python())
+ tensorflow::install_tensorflow(envname="r-tensorflow")
+ 
+model <- keras_model_sequential() 
+model%>%
+  layer_lstm(units, batch_input_shape = c(batch_size, X_shape2, X_shape3), stateful= TRUE)%>%
+  layer_dense(units = 1)
+  
+#Model compilation
+  #import tensorflow as tf
+  library(reticulate)
+  py_install("tensorflow")
+  tf <- import("tensorflow")
+  q <- tf$constant(42)
+print(q)
+ epochs = 20000
+ learning_rate = 0.02
+ decay_rate = learning_rate/epochs
+ optimizer = tf.keras.optimizers.Adam(lr=learning_rate, decay=decay_rate)
+  
+model %>% compile(
+  loss = 'mean_squared_error',
+  optimizer = optimizer_adam( learning_rate= 0.001, weight_decay = 1e-6 ),  
+  metrics = c('accuracy')
+)
+
+#Model summary 
+summary (model)
+
+#Model fitting
+Epochs = 50 
+for(i in 1:Epochs ){
+  model %>% fit(x_train, y_train, epochs=1, batch_size=batch_size, verbose=1, shuffle=FALSE)
+  model %>% reset_states()
+}
+
+#Make predictions
+L = length(x_test)
+scaler = Scaled$scaler
+predictions = numeric(L)
+
+for(i in 1:L){
+     X = x_test[i]
+     dim(X) = c(1,1,1)
+     yhat = model %>% predict(X, batch_size=batch_size)
+     # invert scaling
+     yhat = invert_scaling(yhat, scaler,  c(-1, 1))
+     # invert differencing
+     yhat  = yhat + Series[(N1+i)]
+     # store
+     predictions[i] <- yhat
+}
+
+#View and get accuracy metrics
+predictions
+plot(luna2$Price, type="l", xlab = "Date", ylab="Price")
+plot(predictions, type="l", col="blue", xlab = "Date", ylab="Price")
+
+#Determining model performance
+MSE<-mean((luna2$Price - predictions)^2)
+MSE
+RMSE<-sqrt(MSE)
+RMSE
+
+  

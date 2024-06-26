@@ -1,0 +1,188 @@
+---
+title: "Credit Risk Analysis"
+author: "Matilda Bosire"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Reading in the Data
+
+```{r}
+
+library(readr)
+credit_data <- read_csv("F:/Strathmore Coursework/Applied Analytics/credit applied analytics.csv")
+head(credit_data)
+
+```
+
+# Data Preprocessing
+
+## Overview of Data
+
+```{r}
+class(credit_data)
+```
+
+```{r}
+summary(credit_data)
+```
+## Sample Data Plots
+
+```{r}
+
+par(mfrow = c(2,2))
+
+# frequency plots of numeric variables 
+hist(credit_data$default, main = "Plot of Debtors Default in Credit History", xlab = "Default")
+hist(credit_data$age, main = "Plot of Ages of Debtors in Credit History", xlab = "Age")
+
+# frequency plots of character variables 
+plot(as.factor(credit_data$job), main = "Plot of Job Groups of Debtors in Credit History", xlab = "Job Groups")
+plot(as.factor(credit_data$housing), main = "Plot of Housing of Debtors in Credit History", xlab = "Housing")
+
+```
+
+## Character to Numeric Data
+
+```{r}
+
+# Factor out numeric columns
+num_data <- credit_data[ , 1:8]
+head(num_data )
+
+```
+
+```{r}
+
+# function to change categorical character data to numeric data
+
+checking_balance <- factor(credit_data$checking_balance, ordered = TRUE)
+head(checking_balance)
+
+head(as.numeric(checking_balance))
+
+```
+
+```{r}
+
+# generalizing the function to apply to all columns
+
+char_cols <- credit_data[ , 9:ncol(credit_data)]
+
+fact_function <- function(x){
+  return(as.numeric(factor(x, ordered = TRUE)))
+}
+
+char_data <- lapply(char_cols, fact_function)
+char_data <- as.data.frame(char_data, col.names = colnames(char_cols))
+head(char_data)
+
+```
+
+```{r}
+# the final dataset
+
+data <- cbind.data.frame(num_data, char_data)
+head(data)
+```
+
+# Fitting a Linear Regression Model
+
+```{r}
+
+linear_model <- lm(data$default~., data = data)
+
+summary(linear_model)
+```
+
+### Checking for Homoscedasticity
+
+```{r}
+par(mfrow = c(2,2))
+plot(linear_model)
+```
+
+# Fitting a Logistic Regression Model 
+
+This iks given that our response variable is binary where 1 represents default event, while 2 (now changed to 0) represents no default. 
+
+## Train - Test Split
+
+## Manually (80 - 20)
+
+```{r}
+
+# we have 1000 data points (rows) on 21 variables (columns)
+# 80% of this is 800 rows
+
+train_data <- data[1:800, ]
+test_data <- data[801:1000, ]
+```
+
+## Fitting a linear model on the train data
+
+```{r}
+training_logistic_model <- glm(train_data$default~., data = train_data, family = "binomial")
+
+summary(training_logistic_model)
+```
+
+## Automatic Split
+
+Much better and functional
+
+```{r}
+# install.packages("caTools") # for logistic regression
+# install.packages("ROCR") # for model evaluation
+
+library(caTools)
+library(ROCR)
+```
+
+
+```{r}
+split_data <- sample.split(data, SplitRatio = 0.8)
+
+# split ration is 80:20
+
+head(split_data)
+```
+```{r}
+traindata <- subset(data, split_data == "TRUE")  # picks datapoints that return TRUE
+testdata <- subset(data, split_data == "FALSE")
+```
+
+
+### Fitting the Logistic Model
+
+```{r}
+
+# Logistic Model on the Training model
+logistic_model <- glm(traindata$default~., data = traindata, family = "binomial")
+summary(logistic_model)
+
+```
+
+```{r}
+
+train_predict <- predict(logistic_model, testdata, type = "response")
+head(train_predict)
+```
+
+```{r}
+
+# change output to probabilities
+predicted_probs <- ifelse(train_predict >0.5, 1, 0)
+head(predicted_probs)
+```
+```{r}
+
+table(predicted_probs)
+table(testdata$default)
+```
+

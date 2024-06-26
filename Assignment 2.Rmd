@@ -1,0 +1,182 @@
+---
+title: "ASSIGNMENT 2"
+output:
+  pdf_document: default
+  html_document: default
+date: "2023-11-27"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+install.packages("readxl")
+install.packages("dplyr")
+install.packages("magrittr")
+install.packages("tidyverse")
+
+library(dplyr)
+library(magrittr)
+library(tidyverse)
+library(readxl)
+
+
+#### LOAD DATA ####
+stock_data <- read_excel("C:/Users/wawer/Downloads/Financial Engineering/Year 3 Financial Engineering/Sem 2 Year 3/Applied analytics/Assignment/Assignment 2/NSE_data_all_stocks_2021_upto_31aug2021.xlsx")
+
+
+#### VIEW DATA ####
+str(stock_data)
+View(stock_data)
+
+
+#### PREPARE DATA ####
+   #excluding some columns that will not be in use
+col_to_keep <- c("DATE", "NAME", "Change%")
+   #Subset the data frame to keep only the desired columns
+NSE_subset <- stock_data[, col_to_keep]
+   #View the resulting data frame
+View(NSE_subset)
+
+
+#### REMOVING SOME COMPANIES THAT ARENT NECESSARY IN THE NAME COLUMNS ####
+   #Remove rows where the "NAME" column contains the word "index"
+NSE_subset2 <- NSE_subset %>%
+  filter(!grepl("index", NAME, ignore.case = TRUE))
+   #View the resulting data frame
+View(NSE_subset2)
+str(NSE_subset2)
+
+
+#### CONVERT THE "DATE" COLUMN TO A VALID DATE FORMAT(assuming it is in "YYYY-MM-DD" format) ####
+NSE_subset2$DATE <- as.Date(NSE_subset2$DATE, format = "%Y-%m-%d")
+
+
+#### SORT THE DATA BY "DATE" AND "NAME" COLUMNS ####
+NSE_sorted <- NSE_subset2 %>% arrange(DATE, NAME)
+   #View the resulting data frame 
+View(NSE_sorted)
+
+
+#### PIVOT THE DATA TO WIDE FORMAT #### 
+NSE_wide <- NSE_subset2 %>%
+  pivot_wider(names_from = "NAME", values_from = "Change%")
+   #Set the "DATE" column as row names using column_to_rownames
+NSE_wide <- NSE_wide %>%
+  column_to_rownames(var = "DATE")
+   #View the resulting data frame
+View(NSE_wide)
+str(NSE_wide)
+
+
+#### GENERATE THE DAILY STOCK RETURNS OF EACH INDIVIDUAL STOCK ####
+  daily_stock_returns <- NSE_wide %>% rowwise() %>% mutate(DailyReturn = ifelse(row_number() == 1, NA, Change/lag(Change)))
+
+   #View the resulting data frame 
+View(daily_stock_returns) 
+str(daily_stock_returns)
+
+
+#### IDENTIFYING AND HANDLING MISSING VALUES ####
+   #Check for missing values in the entire dataset
+any_missing <- any(is.na(daily_stock_returns))
+   #Check for missing values by column
+col_missing <- colSums(is.na(daily_stock_returns))
+
+
+#### CHECKING IF SCALING IS NEEDED ####
+need_scaling <- any(apply(NSE_wide, 2, function(col) any(abs(col) > 1)))
+if (need_scaling) {
+  # Scale the data
+  scaled_NSE_wide <- scale(NSE_wide)
+  
+  # View the scaled data frame
+  View(scaled_NSE_wide)
+  
+  cat("Data has been scaled.\n")
+} else {
+  # View the original data frame
+  View(NSE_wide)
+  
+  cat("No scaling is needed.\n")
+}
+   #No scaling is needed since the data has already been scaled.
+
+#### TEST DATA SUITABILITY FOR PCA ####
+   #carrying out correlation
+constant_vars <- names(NSE_wide)[apply(NSE_wide, 2, sd) == 0]
+print(constant_vars)
+   #Remove constant variables
+NSE_wide <- NSE_wide[, apply(NSE_wide, 2, sd) != 0]
+cor_matrix <- cor(NSE_wide)
+   #variance covariance matrix
+cor_matrix <- cor(NSE_wide)
+   #Standardize the data
+scaled_data <- scale(NSE_wide)
+
+
+#### RUN PCA ON THE DATA ####
+   #Compute PCA
+pca_result <- prcomp(NSE_wide, scale. = TRUE)
+   #Print a summary of the PCA
+summary(pca_result)
+   #Scree plot
+plot(pca_result, type = "l", main = "Scree Plot")
+head(pca_result)
+
+#### CHOOSE AN APPROPRIATE NO. OF COMPONENTS TO RETAIN AND JUSTIFY YOUR CHOICES ####
+    #Cumulative proportion of variance explained
+cumulative_var <- cumsum(pca_result$sdev^2 / sum(pca_result$sdev^2))
+    #Plot cumulative proportion of variance explained
+plot(cumulative_var, type = "b", ylab = "Cumulative Proportion of Variance Explained", xlab = "Number of Components", main = "Cumulative Proportion of Variance Explained")
+    #Identify the number of components to retain (e.g., where cumulative proportion is 0.95)
+num_components <- sum(cumulative_var < 0.95) + 1
+abline(h = 0.95, col = "red", lty = 2)
+text(num_components, 0.95, paste("Num Components:", num_components), pos = 2, col = "red")
+   ##In the cumulative proportion of variance explained plot, the red dashed line represents a common threshold, such as 95% of the variance explained. The number of components where the curve crosses or surpasses this threshold is a reasonable choice.
+
+#### PROVIDE AN INTERPRETATION OF YOUR FIRST TWO COMPONENTS ####
+    #To interpret the first two principal components, you can examine the loadings of the original variables on these components. The loadings represent the contribution of each original variable to the principal component.
+ 
+   #Loadings for the first two components
+loadings <- pca_result$rotation[, 1:2]
+    #Plot loadings
+biplot(pca_result, scale = 0, pc.biplot = TRUE, main = "Biplot of PC1 and PC2")
+
+   ##In the biplot, the arrows represent the direction and strength of the loadings for each variable. Variables that point in the same direction are positively correlated with each other in the principal component space.
+   
+   
+#### WHAT DO YOU THINK ARE THE REASONS BEHIND THE RANKINGS FOR THE PERIOD UNDER ANALYSIS ####
+   # Firms that had good corporate governance structures and transparent practices, high standards of ethics and compliance in 2021 performed better.
+   # Companies with strong financial performance and consistent revenue growth attract and retain investors, resulting in higher share prices thus higher ranking.
+   # Stock rankings can be influenced by outside variables such as industry-specific investor sentiment, global market trends, political stability, government policies and economic conditions.
+   # Companies that were highly ranked had visionary and competent leadership as well as strong management teams which were able to overcome obstacles, make calculated decisions, and adjust to shifting market conditions.
+   # Businesses with diversified revenue streams and perceived growth potential may attract greater attention and rank higher when they expand their operations, whether domestically or abroad.
+   
+   
+#### BASED ON THIS DATA, WOULD YOU SAY THE PERFORMANCE OF NSE IS BIASED TOWARDS SPECIFIC COMPANIES, OR INDUSTRIES? WHAT WOULD YOU SAY IS THE REASON BEHIND SUCH BIAS? ####
+
+summary(NSE_wide)
+
+   #Yes, the performance of the NSE is biased towards certain industries such as: Banking and Finance, Energy and Utilities and Telecommunications and Technology industries. This is evident from the performance of the companies which are in those industries i.e Safaricom, Equity Group Holdings Plc and KCB Group
+   #This bias is because these industries are the are the key economic drivers of Kenya's economy, therefore, they tend to attract more attention from investors. Moreover, positive performance as well as growth prospects of companies within certain industries can create a favorable bias for those particular industries.
